@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Whist Score</title>
+    <style>
+        :root {
+            --ink: #111;
+            --line: #222;
+            --muted: #666;
+            --paper: #f7f4ef;
+            --ok: #b7e4c7;
+            --miss: #f5b7b1;
+            --current: #fff3bf;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 24px 16px 48px;
+            font-family: "Segoe UI", Tahoma, sans-serif;
+            background: linear-gradient(180deg, #e8eef5 0%, #f4f6f8 40%, #eef1f5 100%);
+            color: var(--ink);
+        }
+
+        h1 {
+            text-align: center;
+            margin: 0 0 8px;
+            letter-spacing: 0.04em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: var(--muted);
+            margin-bottom: 24px;
+        }
+
+        .error {
+            max-width: 960px;
+            margin: 0 auto 16px;
+            padding: 10px 14px;
+            background: #fdecea;
+            border: 1px solid #e74c3c;
+            color: #922b21;
+        }
+
+        .panel {
+            max-width: 960px;
+            margin: 0 auto 24px;
+            background: white;
+            border: 1px solid #d0d7de;
+            padding: 16px 18px;
+        }
+
+        .panel h2 {
+            margin: 0 0 12px;
+            font-size: 1.1rem;
+        }
+
+        .setup-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .setup-grid input, .round-form input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #bbb;
+        }
+
+        button {
+            padding: 8px 14px;
+            border: none;
+            background: #2c3e50;
+            color: white;
+            cursor: pointer;
+        }
+
+        button:hover { background: #1a252f; }
+
+        button.secondary {
+            background: #7f8c8d;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .board-wrap {
+            overflow-x: auto;
+            max-width: 1100px;
+            margin: 0 auto 28px;
+            background: var(--paper);
+            border: 2px solid var(--line);
+            padding: 8px;
+        }
+
+        table.whist {
+            border-collapse: collapse;
+            width: 100%;
+            min-width: 640px;
+            background: white;
+            table-layout: fixed;
+        }
+
+        table.whist th,
+        table.whist td {
+            border: 1px solid #999;
+            text-align: center;
+            padding: 4px 2px;
+            height: 28px;
+            vertical-align: middle;
+        }
+
+        table.whist th.name {
+            border-bottom: 2px solid var(--line);
+            font-weight: 600;
+            background: #fafafa;
+        }
+
+        table.whist td.cards {
+            width: 34px;
+            color: #c0392b;
+            font-weight: 700;
+            border-right: 3px solid var(--line);
+            background: #fff;
+        }
+
+        table.whist td.bet {
+            width: 42px;
+            border-right: 1px solid #bbb;
+        }
+
+        table.whist td.score {
+            width: 54px;
+            border-right: 3px solid var(--line);
+            font-weight: 600;
+        }
+
+        table.whist tr.phase-end td {
+            border-bottom: 3px solid var(--line);
+        }
+
+        table.whist tr.current-round {
+            background: var(--current);
+        }
+
+        .cell-ok { background: var(--ok) !important; }
+        .cell-miss { background: var(--miss) !important; }
+
+        .round-form .player-row {
+            display: grid;
+            grid-template-columns: 120px 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .hint {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        .history {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        .match-block {
+            background: white;
+            border: 1px solid #d0d7de;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+        }
+
+        .match-block h3 {
+            margin: 0 0 8px;
+            font-size: 1rem;
+        }
+
+        .match-block table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .match-block th, .match-block td {
+            border-bottom: 1px solid #eee;
+            text-align: left;
+            padding: 6px 4px;
+        }
+
+        .finished-banner {
+            text-align: center;
+            font-weight: 700;
+            color: #1e8449;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Whist</h1>
+<p class="subtitle">Tabel de scor · maxim 6 jucatori</p>
+
+<div th:if="${error}" class="error" th:text="${error}"></div>
+
+<!-- Setup -->
+<section class="panel" th:if="${game == null}">
+    <h2>Start joc nou</h2>
+    <p class="hint">Completeaza intre 2 si 6 nume. Numarul de runde de 1 si de 8 = numarul de jucatori.</p>
+    <form th:action="@{/start-game}" method="post">
+        <div class="setup-grid">
+            <input th:each="i : ${#numbers.sequence(1, nameSlots)}"
+                   type="text"
+                   name="names"
+                   th:placeholder="'Jucator ' + ${i}" />
+        </div>
+        <button type="submit">Incepe jocul</button>
+    </form>
+</section>
+
+<!-- Active / finished game -->
+<section th:if="${game != null}">
+    <div class="panel">
+        <div th:if="${game.finished}" class="finished-banner">
+            Meci terminat — scorul final a fost salvat in istoric.
+        </div>
+        <div th:if="${!game.finished}">
+            <h2 th:text="'Runda curenta: ' + ${game.currentRound.cards} + ' carti (#' + ${game.currentRoundIndex + 1} + '/' + ${#lists.size(game.rounds)} + ')'"></h2>
+            <p class="hint">
+                Pariul maxim = cartile rundei (ex. runda de 5 → maxim 5).
+                Suma pariurilor <strong>nu</strong> poate fi egala cu nr. de carti — restrictia cade pe <strong>ultimul jucator</strong>.
+                Corect = verde (+5 + pariu). Gresit = rosu (−diferenta).
+            </p>
+            <p id="last-bet-hint" class="hint" style="color:#1a5276;"></p>
+            <form id="round-form" class="round-form" th:action="@{/submit-round}" method="post"
+                  th:attr="data-cards=${game.currentRound.cards}">
+                <div class="player-row" style="font-weight:600; color:var(--muted);">
+                    <span>Jucator</span>
+                    <span>Pariu</span>
+                    <span>Maini luate</span>
+                </div>
+                <div class="player-row" th:each="name, st : ${game.playerNames}">
+                    <span>
+                        <span th:text="${name}"></span>
+                        <small th:if="${st.last}" style="color:#1a5276;"> (ultimul)</small>
+                    </span>
+                    <input type="number" name="bet" class="bet-input" min="0"
+                           th:max="${game.currentRound.cards}"
+                           th:attr="data-last=${st.last}"
+                           required />
+                    <input type="number" name="hands" min="0" th:max="${game.currentRound.cards}" required />
+                </div>
+                <div class="actions">
+                    <button type="submit">Confirma runda</button>
+                </div>
+            </form>
+            <script>
+                (function () {
+                    const form = document.getElementById('round-form');
+                    if (!form) return;
+                    const cards = Number(form.dataset.cards);
+                    const betInputs = Array.from(form.querySelectorAll('.bet-input'));
+                    const lastInput = betInputs.find(i => i.dataset.last === 'true');
+                    const hint = document.getElementById('last-bet-hint');
+
+                    function allowedForLast() {
+                        const others = betInputs.filter(i => i !== lastInput);
+                        let sum = 0;
+                        for (const input of others) {
+                            const v = input.value === '' ? null : Number(input.value);
+                            if (v === null || Number.isNaN(v)) return null;
+                            sum += v;
+                        }
+                        const allowed = [];
+                        for (let b = 0; b <= cards; b++) {
+                            if (sum + b !== cards) allowed.push(b);
+                        }
+                        return allowed;
+                    }
+
+                    function refreshLastBet() {
+                        if (!lastInput) return;
+                        const allowed = allowedForLast();
+                        if (!allowed) {
+                            hint.textContent = 'Completeaza pariurile celorlalti jucatori — apoi vezi ce poate alege ultimul.';
+                            lastInput.removeAttribute('min');
+                            lastInput.max = String(cards);
+                            return;
+                        }
+                        if (allowed.length === 0) {
+                            hint.textContent = 'Nu exista pariu valid pentru ultimul jucator cu aceste valori.';
+                            return;
+                        }
+                        hint.textContent = 'Ultimul jucator poate alege: ' + allowed.join(', ')
+                            + ' (suma pariurilor ≠ ' + cards + ').';
+                        const current = lastInput.value === '' ? null : Number(lastInput.value);
+                        if (current !== null && !allowed.includes(current)) {
+                            lastInput.value = allowed.length === 1 ? allowed[0] : '';
+                        }
+                        if (allowed.length === 1) {
+                            lastInput.value = allowed[0];
+                            lastInput.readOnly = true;
+                        } else {
+                            lastInput.readOnly = false;
+                        }
+                    }
+
+                    betInputs.forEach(input => {
+                        input.addEventListener('input', () => {
+                            const v = Number(input.value);
+                            if (!Number.isNaN(v) && v > cards) input.value = String(cards);
+                            if (!Number.isNaN(v) && v < 0) input.value = '0';
+                            refreshLastBet();
+                        });
+                    });
+
+                    form.addEventListener('submit', (e) => {
+                        const bets = betInputs.map(i => Number(i.value));
+                        if (bets.some(b => Number.isNaN(b) || b < 0 || b > cards)) {
+                            e.preventDefault();
+                            alert('Fiecare pariu trebuie sa fie intre 0 si ' + cards + '.');
+                            return;
+                        }
+                        const sum = bets.reduce((a, b) => a + b, 0);
+                        if (sum === cards) {
+                            e.preventDefault();
+                            alert('Suma pariurilor nu poate fi egala cu ' + cards + '. Schimba pariul ultimului jucator.');
+                            return;
+                        }
+                        const allowed = allowedForLast();
+                        if (allowed && !allowed.includes(bets[bets.length - 1])) {
+                            e.preventDefault();
+                            alert('Pariul ultimului jucator trebuie sa fie unul din: ' + allowed.join(', '));
+                        }
+                    });
+
+                    refreshLastBet();
+                })();
+            </script>
+        </div>
+        <div class="actions" style="margin-top:12px;">
+            <form th:action="@{/new-game}" method="post">
+                <button type="submit" class="secondary"
+                        th:onclick="${!game.finished} ? 'return confirm(\'Abandonezi jocul curent?\')' : null">
+                    Joc nou
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="board-wrap">
+        <table class="whist">
+            <thead>
+            <tr>
+                <th style="width:34px; border-right:3px solid #222;"></th>
+                <th class="name" th:each="name : ${game.playerNames}" colspan="2" th:text="${name}"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="round : ${game.rounds}"
+                th:classappend="${(!game.finished and round.index == game.currentRoundIndex ? ' current-round' : '') + (round.phaseEnd ? ' phase-end' : '')}">
+                <td class="cards" th:text="${round.cards}"></td>
+                <th:block th:each="cell : ${round.cells}">
+                    <td class="bet" th:classappend="${cell.cssClass}"
+                        th:text="${cell.bet != null ? cell.bet : ''}"></td>
+                    <td class="score" th:classappend="${cell.cssClass}"
+                        th:text="${cell.cumulativeScore != null ? cell.cumulativeScore : ''}"></td>
+                </th:block>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="history">
+    <div class="panel">
+        <h2>Istoric meciuri</h2>
+        <p th:if="${#lists.isEmpty(matches)}" class="hint">Niciun meci salvat inca.</p>
+        <div class="match-block" th:each="match : ${matches}">
+            <h3 th:text="${#temporals.format(match.playedAt, 'dd.MM.yyyy HH:mm')}"></h3>
+            <table>
+                <tr>
+                    <th>Participant</th>
+                    <th>Scor final</th>
+                </tr>
+                <tr th:each="mp : ${match.players}">
+                    <td th:text="${mp.playerName}"></td>
+                    <td th:text="${mp.score}"></td>
+                </tr>
+            </table>
+        </div>
+    </div>
+</section>
+
+</body>
+</html>
